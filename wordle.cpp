@@ -12,9 +12,6 @@ using namespace std;
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results);
 
-// helper to check if word contains all floating letters
-bool hasAllFloating(const string& word, const string& floating);
-
 // main function that finds all valid wordle words
 std::set<std::string> wordle(
     const std::string& in,
@@ -32,11 +29,32 @@ void buildWords(const string& pattern, const string& floating, int pos,
 {
     // base case: if we've filled the entire word
     if (pos == pattern.length()) {
-        // check if it's a real word and has all floating letters
-        if (dict.find(current_word) != dict.end() && hasAllFloating(current_word, floating)) {
-            results.insert(current_word);
+        // check if it's a real word first (fast dictionary lookup)
+        if (dict.find(current_word) == dict.end()) {
+            return;
         }
+        
+        // then check floating letters - efficient single loop
+        for (int i = 0; i < floating.length(); i++) {
+            if (current_word.find(floating[i]) == string::npos) {
+                return; // missing required floating letter
+            }
+        }
+        
+        results.insert(current_word);
         return;
+    }
+    
+    // SMART PRUNING: early exit if impossible to place remaining floating letters
+    int remaining_spots = pattern.length() - pos;
+    int still_need = 0;
+    for (int i = 0; i < floating.length(); i++) {
+        if (current_word.find(floating[i]) == string::npos) {
+            still_need++;
+        }
+    }
+    if (still_need > remaining_spots) {
+        return; // can't fit remaining floating letters
     }
     
     // if this position is fixed, use that letter
@@ -48,21 +66,4 @@ void buildWords(const string& pattern, const string& floating, int pos,
             buildWords(pattern, floating, pos + 1, current_word + c, dict, results);
         }
     }
-}
-
-// check if word contains all required floating letters
-bool hasAllFloating(const string& word, const string& floating) {
-    for (int i = 0; i < floating.length(); i++) {
-        bool found = false;
-        for (int j = 0; j < word.length(); j++) {
-            if (word[j] == floating[i]) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            return false;
-        }
-    }
-    return true;
 }
