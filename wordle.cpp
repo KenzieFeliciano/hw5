@@ -19,6 +19,12 @@ std::set<std::string> wordle(
     const std::set<std::string>& dict)
 {
     set<string> results;
+    
+    // CRITICAL OPTIMIZATION: handle empty pattern immediately
+    if (in.empty()) {
+        return results; // empty set for empty pattern
+    }
+    
     buildWords(in, floating, 0, "", dict, results);
     return results;
 }
@@ -42,50 +48,39 @@ void buildWords(const string& pattern, const string& floating, int pos,
         return;
     }
     
-    // ULTRA AGGRESSIVE PRUNING: early exit if impossible to place remaining floating letters
-    if (!floating.empty()) {
-        int remaining_spots = (int)pattern.length() - pos;
-        int still_need = 0;
-        for (int i = 0; i < (int)floating.length(); i++) {
-            if (current_word.find(floating[i]) == string::npos) {
-                still_need++;
+    // MASSIVE OPTIMIZATION: if no floating letters, skip expensive pruning
+    if (floating.empty()) {
+        // if this position is fixed, use that letter
+        if (pattern[pos] != '-') {
+            buildWords(pattern, floating, pos + 1, current_word + pattern[pos], dict, results);
+        } else {
+            // try all letters a-z for this position  
+            for (char c = 'a'; c <= 'z'; c++) {
+                buildWords(pattern, floating, pos + 1, current_word + c, dict, results);
             }
         }
-        if (still_need > remaining_spots) {
-            return; // can't fit remaining floating letters
+        return;
+    }
+    
+    // SMART PRUNING: early exit if impossible to place remaining floating letters
+    int remaining_spots = (int)pattern.length() - pos;
+    int still_need = 0;
+    for (int i = 0; i < (int)floating.length(); i++) {
+        if (current_word.find(floating[i]) == string::npos) {
+            still_need++;
         }
+    }
+    if (still_need > remaining_spots) {
+        return; // can't fit remaining floating letters
     }
     
     // if this position is fixed, use that letter
     if (pattern[pos] != '-') {
         buildWords(pattern, floating, pos + 1, current_word + pattern[pos], dict, results);
     } else {
-        // CRITICAL OPTIMIZATION: try floating letters first if we need them
-        if (!floating.empty()) {
-            // try floating letters that we haven't placed yet
-            for (int i = 0; i < (int)floating.length(); i++) {
-                char needed_char = floating[i];
-                if (current_word.find(needed_char) == string::npos) {
-                    buildWords(pattern, floating, pos + 1, current_word + needed_char, dict, results);
-                }
-            }
-        }
-        
-        // then try all other letters
+        // try all letters a-z for this position
         for (char c = 'a'; c <= 'z'; c++) {
-            // skip if this is a floating letter we already tried
-            bool is_floating = false;
-            if (!floating.empty()) {
-                for (int i = 0; i < (int)floating.length(); i++) {
-                    if (c == floating[i] && current_word.find(c) == string::npos) {
-                        is_floating = true;
-                        break;
-                    }
-                }
-            }
-            if (!is_floating) {
-                buildWords(pattern, floating, pos + 1, current_word + c, dict, results);
-            }
+            buildWords(pattern, floating, pos + 1, current_word + c, dict, results);
         }
     }
 }
