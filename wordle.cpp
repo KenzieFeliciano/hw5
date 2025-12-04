@@ -8,16 +8,8 @@
 #include "dict-eng.h"
 using namespace std;
 
-// helper function to build words recursively 
-void buildWord(string word_so_far, int position, const string& fixed_pattern, 
-               const string& must_have_letters, const set<string>& dictionary, 
-               set<string>& answer_words);
-
 // helper function to check if word has all the letters we need
 bool checkHasAllLetters(const string& test_word, const string& required_letters);
-
-// helper to count how many floating letters are still needed
-int countStillNeeded(const string& word_so_far, const string& floating);
 
 // main function that finds all valid wordle words
 std::set<std::string> wordle(
@@ -27,66 +19,27 @@ std::set<std::string> wordle(
 {
     set<string> valid_words;
     
-    // if no floating letters, iterate through dictionary instead (much faster)
-    if (floating.empty()) {
-        for (const string& word : dict) {
-            if (word.length() == in.length()) {
-                bool matches = true;
-                for (int i = 0; i < in.length(); i++) {
-                    if (in[i] != '-' && in[i] != word[i]) {
-                        matches = false;
-                        break;
-                    }
-                }
-                if (matches) {
-                    valid_words.insert(word);
-                }
+    // MUCH MORE EFFICIENT: always iterate through dictionary first
+    for (const string& word : dict) {
+        if (word.length() != in.length()) {
+            continue; // wrong length
+        }
+        
+        // check if word matches the fixed pattern
+        bool matches_pattern = true;
+        for (int i = 0; i < in.length(); i++) {
+            if (in[i] != '-' && in[i] != word[i]) {
+                matches_pattern = false;
+                break;
             }
         }
-        return valid_words; // early return to avoid recursive case
+        
+        if (matches_pattern && checkHasAllLetters(word, floating)) {
+            valid_words.insert(word);
+        }
     }
-    
-    // use recursive generation when we have floating letters
-    buildWord("", 0, in, floating, dict, valid_words);
     
     return valid_words;
-}
-
-// this function tries to build a word one letter at a time
-void buildWord(string word_so_far, int position, const string& fixed_pattern, 
-               const string& must_have_letters, const set<string>& dictionary, 
-               set<string>& answer_words)
-{
-    // early exit - if we need more floating letters than remaining spots, impossible
-    int remaining_spots = fixed_pattern.length() - position;
-    int still_need = countStillNeeded(word_so_far, must_have_letters);
-    if (still_need > remaining_spots) {
-        return;
-    }
-    
-    // if we filled the whole word, check if its valid
-    if (position == fixed_pattern.length()) {
-        // check if its a real word in the dictionary first (faster than letter check)
-        if (dictionary.find(word_so_far) != dictionary.end()) {
-            // only then check if it has all the letters we need
-            if (checkHasAllLetters(word_so_far, must_have_letters)) {
-                answer_words.insert(word_so_far);
-            }
-        }
-        return;
-    }
-    
-    // if theres already a letter here, just use it
-    if (fixed_pattern[position] != '-') {
-        word_so_far = word_so_far + fixed_pattern[position];
-        buildWord(word_so_far, position + 1, fixed_pattern, must_have_letters, dictionary, answer_words);
-    } else {
-        // this spot is empty so try every letter from a to z
-        for (char letter = 'a'; letter <= 'z'; letter++) {
-            string new_word = word_so_far + letter;
-            buildWord(new_word, position + 1, fixed_pattern, must_have_letters, dictionary, answer_words);
-        }
-    }
 }
 
 // check if the word contains all the letters that must be in it
@@ -111,23 +64,4 @@ bool checkHasAllLetters(const string& test_word, const string& required_letters)
     }
     // if we made it here, the word has all required letters
     return true;
-}
-
-// count how many floating letters are still needed
-int countStillNeeded(const string& word_so_far, const string& floating) {
-    int still_need = 0;
-    for (int i = 0; i < floating.length(); i++) {
-        char letter = floating[i];
-        bool found = false;
-        for (int j = 0; j < word_so_far.length(); j++) {
-            if (word_so_far[j] == letter) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            still_need++;
-        }
-    }
-    return still_need;
 }
