@@ -2,4 +2,7 @@
 hw5_tests/
 wordle-driver
 schedwork-driver
+*.dSYM/
+.vscode/
+*~
 
