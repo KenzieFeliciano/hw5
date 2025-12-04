@@ -74,32 +74,25 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
         return trySchedule(day + 1, 0, avail, dailyNeed, maxShifts, sched, workerShifts);
     }
     
-    // aggressive pruning: check if remaining workers can fill remaining slots
-    int remaining_slots_today = dailyNeed - slot;
-    int available_workers_today = 0;
+    // simple aggressive pruning: check available workers
+    int available_count = 0;
     for(int w = 0; w < numWorkers; w++) {
         if(avail[day][w] && workerShifts[w] < maxShifts && 
            !workerAlreadyScheduled(day, w, sched)) {
-            available_workers_today++;
+            available_count++;
         }
     }
-    if(available_workers_today < remaining_slots_today) {
-        return false; // impossible to fill remaining slots
+    if(available_count < (dailyNeed - slot)) {
+        return false; // not enough workers
     }
     
-    // try workers in order of how many shifts they have (least first for better distribution)
-    vector<pair<int, int>> worker_order;
+    // try each worker for this slot - simple order
     for(int worker = 0; worker < numWorkers; worker++) {
-        if(avail[day][worker] && workerShifts[worker] < maxShifts && 
-           !workerAlreadyScheduled(day, worker, sched)) {
-            worker_order.push_back({workerShifts[worker], worker});
+        // check constraints
+        if(!avail[day][worker] || workerShifts[worker] >= maxShifts || 
+           workerAlreadyScheduled(day, worker, sched)) {
+            continue;
         }
-    }
-    sort(worker_order.begin(), worker_order.end());
-    
-    // try each available worker
-    for(auto& pair : worker_order) {
-        int worker = pair.second;
         
         // try scheduling this worker
         sched[day].push_back(worker);
@@ -110,12 +103,11 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
             return true; // found a solution
         }
         
-        // backtrack - this didnt work so remove the worker
+        // backtrack
         sched[day].pop_back();
         workerShifts[worker]--;
     }
     
-    // tried all workers and none worked
     return false;
 }
 
