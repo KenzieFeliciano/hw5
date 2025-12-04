@@ -81,14 +81,14 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
             continue; // worker not available
         }
         
-        // check if worker already scheduled for this day
-        if(workerAlreadyScheduled(day, worker, sched)) {
-            continue; // cant schedule same worker twice in one day
-        }
-        
         // check if worker hasnt exceeded max shifts
         if(workerShifts[worker] >= maxShifts) {
             continue; // worker already has too many shifts
+        }
+        
+        // check if worker already scheduled for this day
+        if(workerAlreadyScheduled(day, worker, sched)) {
+            continue; // cant schedule same worker twice in one day
         }
         
         // try scheduling this worker

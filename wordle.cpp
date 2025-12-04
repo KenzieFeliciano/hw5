@@ -37,10 +37,10 @@ void buildWord(string word_so_far, int position, const string& fixed_pattern,
 {
     // if we filled the whole word, check if its valid
     if (position == fixed_pattern.length()) {
-        // make sure it has all the letters we need
-        if (checkHasAllLetters(word_so_far, must_have_letters)) {
-            // check if its a real word in the dictionary
-            if (dictionary.find(word_so_far) != dictionary.end()) {
+        // check if its a real word in the dictionary first (faster than letter check)
+        if (dictionary.find(word_so_far) != dictionary.end()) {
+            // only then check if it has all the letters we need
+            if (checkHasAllLetters(word_so_far, must_have_letters)) {
                 answer_words.insert(word_so_far);
             }
         }
