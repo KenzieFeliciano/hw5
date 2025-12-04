@@ -70,26 +70,26 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
     }
     
     // if we filled all slots for this day, move to next day
-    if(slot == dailyNeed) {
+    if(slot == (int)dailyNeed) {
         return trySchedule(day + 1, 0, avail, dailyNeed, maxShifts, sched, workerShifts);
     }
     
     // simple aggressive pruning: check available workers
     int available_count = 0;
     for(int w = 0; w < numWorkers; w++) {
-        if(avail[day][w] && workerShifts[w] < maxShifts && 
+        if(avail[day][w] && workerShifts[w] < (int)maxShifts && 
            !workerAlreadyScheduled(day, w, sched)) {
             available_count++;
         }
     }
-    if(available_count < (dailyNeed - slot)) {
+    if(available_count < ((int)dailyNeed - slot)) {
         return false; // not enough workers
     }
     
     // try each worker for this slot - simple order
     for(int worker = 0; worker < numWorkers; worker++) {
         // check constraints
-        if(!avail[day][worker] || workerShifts[worker] >= maxShifts || 
+        if(!avail[day][worker] || workerShifts[worker] >= (int)maxShifts || 
            workerAlreadyScheduled(day, worker, sched)) {
             continue;
         }
