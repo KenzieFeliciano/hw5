@@ -8,9 +8,6 @@
 #include "dict-eng.h"
 using namespace std;
 
-// helper function to check if word has all the letters we need
-bool checkHasAllLetters(const string& test_word, const string& required_letters);
-
 // main function that finds all valid wordle words
 std::set<std::string> wordle(
     const std::string& in,
@@ -19,49 +16,64 @@ std::set<std::string> wordle(
 {
     set<string> valid_words;
     
-    // MUCH MORE EFFICIENT: always iterate through dictionary first
+    // aggressive early exit optimizations
+    if (in.empty()) {
+        return valid_words;
+    }
+    
+    // pre-compute pattern info for faster checking
+    int target_length = in.length();
+    bool has_floating = !floating.empty();
+    
+    // optimize floating letter checking with char counts
+    int floating_counts[26] = {0};
+    if (has_floating) {
+        for (char c : floating) {
+            floating_counts[c - 'a']++;
+        }
+    }
+    
+    // iterate dictionary with maximum pruning
     for (const string& word : dict) {
-        if (word.length() != in.length()) {
-            continue; // wrong length
+        // length check first - fastest elimination
+        if (word.length() != target_length) {
+            continue;
         }
         
-        // check if word matches the fixed pattern
+        // pattern check with early exit
         bool matches_pattern = true;
-        for (int i = 0; i < in.length(); i++) {
+        for (int i = 0; i < target_length; i++) {
             if (in[i] != '-' && in[i] != word[i]) {
                 matches_pattern = false;
                 break;
             }
         }
-        
-        if (matches_pattern && checkHasAllLetters(word, floating)) {
-            valid_words.insert(word);
+        if (!matches_pattern) {
+            continue;
         }
-    }
-    
-    return valid_words;
-}
-
-// check if the word contains all the letters that must be in it
-bool checkHasAllLetters(const string& test_word, const string& required_letters) {
-    // go through each letter we need
-    for (int i = 0; i < required_letters.length(); i++) {
-        char need_this_letter = required_letters[i];
-        bool found_it = false;
         
-        // look for it in the test word
-        for (int j = 0; j < test_word.length(); j++) {
-            if (test_word[j] == need_this_letter) {
-                found_it = true;
-                break;
+        // optimized floating letter check using character counts
+        if (has_floating) {
+            int word_counts[26] = {0};
+            for (char c : word) {
+                word_counts[c - 'a']++;
+            }
+            
+            bool has_all_floating = true;
+            for (int i = 0; i < 26; i++) {
+                if (floating_counts[i] > 0 && word_counts[i] < floating_counts[i]) {
+                    has_all_floating = false;
+                    break;
+                }
+            }
+            
+            if (!has_all_floating) {
+                continue;
             }
         }
         
-        // if we didnt find a required letter, this word is no good
-        if (!found_it) {
-            return false;
-        }
+        valid_words.insert(word);
     }
-    // if we made it here, the word has all required letters
-    return true;
+    
+    return valid_words;
 }

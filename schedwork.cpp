@@ -74,22 +74,32 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
         return trySchedule(day + 1, 0, avail, dailyNeed, maxShifts, sched, workerShifts);
     }
     
-    // try each worker for this slot
+    // aggressive pruning: check if remaining workers can fill remaining slots
+    int remaining_slots_today = dailyNeed - slot;
+    int available_workers_today = 0;
+    for(int w = 0; w < numWorkers; w++) {
+        if(avail[day][w] && workerShifts[w] < maxShifts && 
+           !workerAlreadyScheduled(day, w, sched)) {
+            available_workers_today++;
+        }
+    }
+    if(available_workers_today < remaining_slots_today) {
+        return false; // impossible to fill remaining slots
+    }
+    
+    // try workers in order of how many shifts they have (least first for better distribution)
+    vector<pair<int, int>> worker_order;
     for(int worker = 0; worker < numWorkers; worker++) {
-        // check if this worker can work this day
-        if(!avail[day][worker]) {
-            continue; // worker not available
+        if(avail[day][worker] && workerShifts[worker] < maxShifts && 
+           !workerAlreadyScheduled(day, worker, sched)) {
+            worker_order.push_back({workerShifts[worker], worker});
         }
-        
-        // check if worker hasnt exceeded max shifts
-        if(workerShifts[worker] >= maxShifts) {
-            continue; // worker already has too many shifts
-        }
-        
-        // check if worker already scheduled for this day
-        if(workerAlreadyScheduled(day, worker, sched)) {
-            continue; // cant schedule same worker twice in one day
-        }
+    }
+    sort(worker_order.begin(), worker_order.end());
+    
+    // try each available worker
+    for(auto& pair : worker_order) {
+        int worker = pair.second;
         
         // try scheduling this worker
         sched[day].push_back(worker);
