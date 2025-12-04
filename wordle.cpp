@@ -28,14 +28,14 @@ void buildWords(const string& pattern, const string& floating, int pos,
                 string current_word, const set<string>& dict, set<string>& results)
 {
     // base case: if we've filled the entire word
-    if (pos == pattern.length()) {
+    if (pos == (int)pattern.length()) {
         // check if it's a real word first (fast dictionary lookup)
         if (dict.find(current_word) == dict.end()) {
             return;
         }
         
         // then check floating letters - efficient single loop
-        for (int i = 0; i < floating.length(); i++) {
+        for (int i = 0; i < (int)floating.length(); i++) {
             if (current_word.find(floating[i]) == string::npos) {
                 return; // missing required floating letter
             }
@@ -45,10 +45,24 @@ void buildWords(const string& pattern, const string& floating, int pos,
         return;
     }
     
+    // CRITICAL OPTIMIZATION: if no floating letters, much smarter approach
+    if (floating.empty()) {
+        // if this position is fixed, use that letter
+        if (pattern[pos] != '-') {
+            buildWords(pattern, floating, pos + 1, current_word + pattern[pos], dict, results);
+        } else {
+            // try all letters a-z for this position
+            for (char c = 'a'; c <= 'z'; c++) {
+                buildWords(pattern, floating, pos + 1, current_word + c, dict, results);
+            }
+        }
+        return;
+    }
+    
     // SMART PRUNING: early exit if impossible to place remaining floating letters
-    int remaining_spots = pattern.length() - pos;
+    int remaining_spots = (int)pattern.length() - pos;
     int still_need = 0;
-    for (int i = 0; i < floating.length(); i++) {
+    for (int i = 0; i < (int)floating.length(); i++) {
         if (current_word.find(floating[i]) == string::npos) {
             still_need++;
         }
