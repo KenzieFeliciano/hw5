@@ -16,9 +16,6 @@ void buildWord(string word_so_far, int position, const string& fixed_pattern,
 // helper function to check if word has all the letters we need
 bool checkHasAllLetters(const string& test_word, const string& required_letters);
 
-// helper to count how many floating letters we still need
-int countMissingLetters(const string& word_so_far, const string& floating);
-
 // main function that finds all valid wordle words
 std::set<std::string> wordle(
     const std::string& in,
@@ -56,13 +53,6 @@ void buildWord(string word_so_far, int position, const string& fixed_pattern,
                const string& must_have_letters, const set<string>& dictionary, 
                set<string>& answer_words)
 {
-    // aggressive pruning - if we dont have enough spots left for floating letters, quit early
-    int remaining_spots = fixed_pattern.length() - position;
-    int still_need = countMissingLetters(word_so_far, must_have_letters);
-    if (still_need > remaining_spots) {
-        return; // cant fit all required letters
-    }
-    
     // if we filled the whole word, check if its valid
     if (position == fixed_pattern.length()) {
         // check if its a real word in the dictionary first (faster than letter check)
@@ -110,23 +100,4 @@ bool checkHasAllLetters(const string& test_word, const string& required_letters)
     }
     // if we made it here, the word has all required letters
     return true;
-}
-
-// count how many floating letters we still need to place
-int countMissingLetters(const string& word_so_far, const string& floating) {
-    int missing = 0;
-    for (int i = 0; i < floating.length(); i++) {
-        char need = floating[i];
-        bool found = false;
-        for (int j = 0; j < word_so_far.length(); j++) {
-            if (word_so_far[j] == need) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            missing++;
-        }
-    }
-    return missing;
 }
