@@ -113,11 +113,7 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
 
 // check if a worker is already scheduled to work on a specific day
 bool workerAlreadyScheduled(int day, Worker_T worker, const DailySchedule& sched) {
-    for(int i = 0; i < sched[day].size(); i++) {
-        if(sched[day][i] == worker) {
-            return true;
-        }
-    }
-    return false;
+    // use STL find algorithm as allowed
+    return std::find(sched[day].begin(), sched[day].end(), worker) != sched[day].end();
 }
 
