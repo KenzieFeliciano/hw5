@@ -27,8 +27,26 @@ std::set<std::string> wordle(
 {
     set<string> valid_words;
     
-    // start building words from the beginning
-    buildWord("", 0, in, floating, dict, valid_words);
+    // if no floating letters, iterate through dictionary instead (much faster)
+    if (floating.empty()) {
+        for (const string& word : dict) {
+            if (word.length() == in.length()) {
+                bool matches = true;
+                for (int i = 0; i < in.length(); i++) {
+                    if (in[i] != '-' && in[i] != word[i]) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches) {
+                    valid_words.insert(word);
+                }
+            }
+        }
+    } else {
+        // use recursive generation when we have floating letters
+        buildWord("", 0, in, floating, dict, valid_words);
+    }
     
     return valid_words;
 }
