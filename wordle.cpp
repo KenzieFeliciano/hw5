@@ -9,9 +9,9 @@
 using namespace std;
 
 // Helper function to recursively build words
-void findWords(const string& pattern, const string& floating, int position, 
-               string currentWord, const set<string>& dict, set<string>& results,
-               map<char, int>& floatingCount);
+void findWords(const string& pattern, int position, 
+               string& currentWord, const set<string>& dict, set<string>& results,
+               map<char, int>& remainingFloating);
 
 std::set<std::string> wordle(
     const std::string& in,
@@ -24,65 +24,47 @@ std::set<std::string> wordle(
         return results;
     }
     
-    // Count how many of each floating letter we need
-    map<char, int> floatingCount;
+    // need to track floating letters and how many times each one appears
+    map<char, int> remainingFloating;
     for (int i = 0; i < (int)floating.size(); i++) {
-        floatingCount[floating[i]]++;
+        remainingFloating[floating[i]]++;
     }
     
-    // Start building words from the beginning
-    string currentWord = "";
-    findWords(in, floating, 0, currentWord, dict, results, floatingCount);
+    string currentWord = in;
+    
+    findWords(in, 0, currentWord, dict, results, remainingFloating);
     
     return results;
 }
 
-void findWords(const string& pattern, const string& floating, int position, 
-               string currentWord, const set<string>& dict, set<string>& results,
-               map<char, int>& floatingCount)
+void findWords(const string& pattern, int position, 
+               string& currentWord, const set<string>& dict, set<string>& results,
+               map<char, int>& remainingFloating)
 {
-    // If we've filled all positions, check if this is a valid word
+    // Base case: we've filled all positions in the word
     if (position == (int)pattern.length()) {
-        // First check if the word exists in our dictionary
+        // check if we used all the floating letters
+        for (const auto& pair : remainingFloating) {
+            if (pair.second > 0) {
+                return; // still have unused floating letters, this word won't work
+            }
+        }
+        
+        // see if this word exists in the dictionary
         if (dict.find(currentWord) != dict.end()) {
-            // Count letters that appear in dash positions
-            map<char, int> dashLetters;
-            for (int i = 0; i < (int)currentWord.length(); i++) {
-                if (pattern[i] == '-') {
-                    dashLetters[currentWord[i]]++;
-                }
-            }
-            
-            // Check if we have all required floating letters
-            map<char, int> requiredLetters;
-            for (int i = 0; i < (int)floating.length(); i++) {
-                requiredLetters[floating[i]]++;
-            }
-            
-            bool hasAllFloating = true;
-            for (map<char, int>::iterator it = requiredLetters.begin(); 
-                 it != requiredLetters.end(); it++) {
-                if (dashLetters[it->first] < it->second) {
-                    hasAllFloating = false;
-                    break;
-                }
-            }
-            
-            if (hasAllFloating) {
-                results.insert(currentWord);
-            }
+            results.insert(currentWord);
         }
         return;
     }
     
-    // If this position has a fixed letter, use it
+    // if this spot already has a letter (not a dash), just move to the next position
     if (pattern[position] != '-') {
-        currentWord += pattern[position];
-        findWords(pattern, floating, position + 1, currentWord, dict, results, floatingCount);
+        findWords(pattern, position + 1, currentWord, dict, results, remainingFloating);
         return;
     }
     
-    // Check if we can still place all remaining floating letters
+    // OK so this is a dash position - I need to try letters here
+    // First, let me figure out how many empty spots I have left
     int dashesLeft = 0;
     for (int i = position; i < (int)pattern.length(); i++) {
         if (pattern[i] == '-') {
@@ -90,31 +72,34 @@ void findWords(const string& pattern, const string& floating, int position,
         }
     }
     
+    // And count how many floating letters I still need to place
     int floatingLeft = 0;
-    for (map<char, int>::iterator it = floatingCount.begin(); 
-         it != floatingCount.end(); it++) {
-        if (it->second > 0) {
-            floatingLeft += it->second;
-        }
+    for (const auto& pair : remainingFloating) {
+        floatingLeft += pair.second;
     }
     
+    // If I have more floating letters than empty spots, this path is impossible
     if (floatingLeft > dashesLeft) {
-        return; // Not enough spaces for remaining floating letters
+        return;
     }
     
-    // Try each letter for this dash position
-    for (char letter = 'a'; letter <= 'z'; letter++) {
-        currentWord += letter;
+    // Now I'll try each letter from a to z in this position
+    for (char c = 'a'; c <= 'z'; c++) {
+        currentWord[position] = c;
         
-        // Update floating letter count if we used one
-        map<char, int> newFloatingCount = floatingCount;
-        if (newFloatingCount.count(letter) && newFloatingCount[letter] > 0) {
-            newFloatingCount[letter]--;
+        // Check if this letter is one of my required floating letters
+        if (remainingFloating.count(c) && remainingFloating[c] > 0) {
+            // Perfect! I can use one of my floating letters here
+            remainingFloating[c]--;
+            findWords(pattern, position + 1, currentWord, dict, results, remainingFloating);
+            remainingFloating[c]++; // backtrack - put it back
+        } else {
+            // This isn't a floating letter, but maybe I can still use it
+            // I just need to make sure I have enough spots left for my floating letters
+            int spotsAfterThis = dashesLeft - 1;
+            if (floatingLeft <= spotsAfterThis) {
+                findWords(pattern, position + 1, currentWord, dict, results, remainingFloating);
+            }
         }
-        
-        findWords(pattern, floating, position + 1, currentWord, dict, results, newFloatingCount);
-        
-        // Remove the letter we just tried (backtrack)
-        currentWord.pop_back();
     }
 }
