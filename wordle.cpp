@@ -39,7 +39,7 @@ std::set<std::string> wordle(
     return results;
 }
 
-// recursive function to build words efficiently with smart pruning  
+// recursive function to build words efficiently with very smart pruning  
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results,
                 map<char, int>& floating_needed)
@@ -91,6 +91,22 @@ void buildWords(const string& pattern, const string& floating, int pos,
         return;
     }
     
+    // ultra-aggressive pruning: check if partial word could possibly be in dictionary
+    // by seeing if any word starts with current_word + at least one more character
+    if (current_word.length() > 0) {
+        bool could_be_word = false;
+        for (const string& word : dict) {
+            if (word.length() >= current_word.length() + 1 && 
+                word.substr(0, current_word.length()) == current_word) {
+                could_be_word = true;
+                break;
+            }
+        }
+        if (!could_be_word) {
+            return; // no possible words start with this prefix
+        }
+    }
+    
     // smart pruning: if we can't possibly fulfill floating requirements with remaining dashes
     int remaining_dashes = 0;
     for (int i = pos; i < (int)pattern.length(); i++) {
@@ -105,33 +121,21 @@ void buildWords(const string& pattern, const string& floating, int pos,
         return; // impossible to fulfill floating requirements
     }
     
-    // optimization: if this is the last dash and we have unfulfilled floating requirements,
-    // only try letters that could fulfill those requirements
-    if (pos == (int)pattern.length() - 1) {
-        bool has_unfulfilled = false;
+    // if we're getting close to the end and have floating requirements, be very selective
+    if (remaining_dashes <= 2 && unfulfilled_count > 0) {
+        // only try letters that could fulfill floating requirements (loop 5)
         for (map<char, int>::iterator it = floating_needed.begin(); 
              it != floating_needed.end(); it++) {
             if (it->second > 0) {
-                has_unfulfilled = true;
-                break;
+                char c = it->first;
+                current_word += c;
+                map<char, int> temp_needed = floating_needed;
+                temp_needed[c]--;
+                buildWords(pattern, floating, pos + 1, current_word, dict, results, temp_needed);
+                current_word.pop_back();
             }
         }
-        
-        if (has_unfulfilled) {
-            // only try letters that fulfill floating requirements (loop 5)
-            for (map<char, int>::iterator it = floating_needed.begin(); 
-                 it != floating_needed.end(); it++) {
-                if (it->second > 0) {
-                    char c = it->first;
-                    current_word += c;
-                    map<char, int> temp_needed = floating_needed;
-                    temp_needed[c]--;
-                    buildWords(pattern, floating, pos + 1, current_word, dict, results, temp_needed);
-                    current_word.pop_back();
-                }
-            }
-            return;
-        }
+        return;
     }
     
     // current position is a dash, try all letters but with smart ordering (still loop 5)
