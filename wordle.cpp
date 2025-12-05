@@ -45,10 +45,12 @@ std::set<std::string> wordle(
             continue;
         }
         
-        // Check if word contains all required floating letters
-        map<char, int> word_chars;
-        for (char c : word) {
-            word_chars[c]++;
+        // Check if word contains all required floating letters IN DASH POSITIONS ONLY
+        map<char, int> dash_chars;
+        for (int i = 0; i < (int)word.length(); i++) {
+            if (in[i] == '-') {  // Only count chars in dash positions
+                dash_chars[word[i]]++;
+            }
         }
         
         bool has_floating = true;
@@ -58,7 +60,7 @@ std::set<std::string> wordle(
         }
         
         for (auto& p : floating_needed) {
-            if (word_chars[p.first] < p.second) {
+            if (dash_chars[p.first] < p.second) {
                 has_floating = false;
                 break;
             }
