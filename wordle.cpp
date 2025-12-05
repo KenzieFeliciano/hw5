@@ -13,7 +13,7 @@ void buildWords(const string& pattern, const string& floating, int pos,
                 string current_word, const set<string>& dict, set<string>& results,
                 map<char, int>& floating_needed);
 
-// main wordle function - generates all combos then checks dict
+// main wordle function - uses recursive helper to generate words
 std::set<std::string> wordle(
     const std::string& in,
     const std::string& floating,
@@ -39,7 +39,7 @@ std::set<std::string> wordle(
     return results;
 }
 
-// recursive function to build words
+// recursive function to build words efficiently
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results,
                 map<char, int>& floating_needed)
@@ -91,10 +91,43 @@ void buildWords(const string& pattern, const string& floating, int pos,
         return;
     }
     
-    // current position is a dash, try all 26 letters (loop 5)
+    // optimization: if this is the last dash and we have unfulfilled floating requirements,
+    // only try letters that could fulfill those requirements
+    if (pos == (int)pattern.length() - 1) {
+        bool has_unfulfilled = false;
+        for (map<char, int>::iterator it = floating_needed.begin(); 
+             it != floating_needed.end(); it++) {
+            if (it->second > 0) {
+                has_unfulfilled = true;
+                break;
+            }
+        }
+        
+        if (has_unfulfilled) {
+            // only try letters that fulfill floating requirements (loop 5)
+            for (map<char, int>::iterator it = floating_needed.begin(); 
+                 it != floating_needed.end(); it++) {
+                if (it->second > 0) {
+                    char c = it->first;
+                    current_word += c;
+                    map<char, int> temp_needed = floating_needed;
+                    temp_needed[c]--;
+                    buildWords(pattern, floating, pos + 1, current_word, dict, results, temp_needed);
+                    current_word.pop_back();
+                }
+            }
+            return;
+        }
+    }
+    
+    // current position is a dash, try all 26 letters (still loop 5 but optimized)
     for (char c = 'a'; c <= 'z'; c++) {
         current_word += c;
-        buildWords(pattern, floating, pos + 1, current_word, dict, results, floating_needed);
+        map<char, int> temp_needed = floating_needed;
+        if (temp_needed.count(c)) {
+            temp_needed[c]--;
+        }
+        buildWords(pattern, floating, pos + 1, current_word, dict, results, temp_needed);
         current_word.pop_back(); // backtrack
     }
 }
