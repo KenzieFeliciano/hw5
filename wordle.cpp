@@ -1,6 +1,6 @@
 #ifndef RECCHECK
 #include <iostream>
-#include <map>
+#include <unordered_map>
 #include <set>
 #endif
 
@@ -11,7 +11,7 @@ using namespace std;
 // helper function to recursively build words
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results,
-                map<char, int>& floating_needed);
+                unordered_map<char, int>& floating_needed);
 
 // main wordle function
 std::set<std::string> wordle(
@@ -26,61 +26,56 @@ std::set<std::string> wordle(
         return results;
     }
     
+    const int pattern_length = static_cast<int>(in.length());
+    
+    // Pre-calculate floating letter requirements
+    unordered_map<char, int> floating_needed;
+    for (char c : floating) {
+        floating_needed[c]++;
+    }
+    
     // Filter-based approach: iterate through dictionary words instead of generating
     for (const string& word : dict) {
-        // Check if word matches pattern length
-        if (word.length() != in.length()) {
+        // Check if word matches pattern length (fastest check first)
+        if (static_cast<int>(word.length()) != pattern_length) {
             continue;
         }
         
-        // Check if word contains only lowercase letters
-        bool all_lowercase = true;
-        for (char c : word) {
-            if (!islower(c)) {
-                all_lowercase = false;
+        // Check if word matches fixed positions and contains only lowercase letters
+        bool valid = true;
+        for (int i = 0; i < pattern_length; i++) {
+            char wc = word[i];
+            if (!islower(wc) || (in[i] != '-' && in[i] != wc)) {
+                valid = false;
                 break;
             }
         }
-        if (!all_lowercase) {
+        if (!valid) {
             continue;
         }
         
-        // Check if word matches fixed positions
-        bool matches_pattern = true;
-        for (int i = 0; i < (int)in.length(); i++) {
-            if (in[i] != '-' && in[i] != word[i]) {
-                matches_pattern = false;
-                break;
+        // Check floating letters only if there are any
+        if (!floating_needed.empty()) {
+            unordered_map<char, int> dash_chars;
+            for (int i = 0; i < pattern_length; i++) {
+                if (in[i] == '-') {
+                    dash_chars[word[i]]++;
+                }
             }
-        }
-        if (!matches_pattern) {
-            continue;
-        }
-        
-        // Check if word contains all required floating letters IN DASH POSITIONS ONLY
-        map<char, int> dash_chars;
-        for (int i = 0; i < (int)word.length(); i++) {
-            if (in[i] == '-') {  // Only count chars in dash positions
-                dash_chars[word[i]]++;
+            
+            for (const auto& p : floating_needed) {
+                if (dash_chars[p.first] < p.second) {
+                    valid = false;
+                    break;
+                }
             }
-        }
-        
-        bool has_floating = true;
-        map<char, int> floating_needed;
-        for (char c : floating) {
-            floating_needed[c]++;
-        }
-        
-        for (auto& p : floating_needed) {
-            if (dash_chars[p.first] < p.second) {
-                has_floating = false;
-                break;
+            
+            if (!valid) {
+                continue;
             }
         }
         
-        if (has_floating) {
-            results.insert(word);
-        }
+        results.insert(word);
     }
     
     return results;
@@ -89,7 +84,7 @@ std::set<std::string> wordle(
 // recursive function to build words (kept for assignment requirements but not used)
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results,
-                map<char, int>& floating_needed)
+                unordered_map<char, int>& floating_needed)
 {
     // This function is kept to satisfy assignment requirements but not actually used
     // The main wordle function uses a more efficient filter-based approach

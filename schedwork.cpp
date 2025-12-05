@@ -76,7 +76,7 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
         return trySchedule(day + 1, 0, avail, dailyNeed, maxShifts, sched, workerShifts, dayWorkers);
     }
     
-    // simple aggressive pruning: check available workers
+    // aggressive pruning: check available workers for this slot
     int available_count = 0;
     for(int w = 0; w < numWorkers; w++) {
         if(avail[day][w] && workerShifts[w] < (int)maxShifts && 
@@ -85,7 +85,20 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
         }
     }
     if(available_count < ((int)dailyNeed - slot)) {
-        return false; // not enough workers
+        return false; // not enough workers for remaining slots
+    }
+    
+    // future days pruning: check if we can satisfy all remaining days
+    for(int future_day = day + 1; future_day < numDays; future_day++) {
+        int future_available = 0;
+        for(int w = 0; w < numWorkers; w++) {
+            if(avail[future_day][w] && workerShifts[w] < (int)maxShifts) {
+                future_available++;
+            }
+        }
+        if(future_available < (int)dailyNeed) {
+            return false; // impossible to fill future day
+        }
     }
     
     // try each worker for this slot - simple order
