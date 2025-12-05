@@ -39,7 +39,7 @@ std::set<std::string> wordle(
     return results;
 }
 
-// recursive function to build words efficiently
+// recursive function to build words efficiently with smart pruning  
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results,
                 map<char, int>& floating_needed)
@@ -91,6 +91,20 @@ void buildWords(const string& pattern, const string& floating, int pos,
         return;
     }
     
+    // smart pruning: if we can't possibly fulfill floating requirements with remaining dashes
+    int remaining_dashes = 0;
+    for (int i = pos; i < (int)pattern.length(); i++) {
+        if (pattern[i] == '-') remaining_dashes++;
+    }
+    int unfulfilled_count = 0;
+    for (map<char, int>::iterator it = floating_needed.begin(); 
+         it != floating_needed.end(); it++) {
+        if (it->second > 0) unfulfilled_count += it->second;
+    }
+    if (unfulfilled_count > remaining_dashes) {
+        return; // impossible to fulfill floating requirements
+    }
+    
     // optimization: if this is the last dash and we have unfulfilled floating requirements,
     // only try letters that could fulfill those requirements
     if (pos == (int)pattern.length() - 1) {
@@ -120,12 +134,12 @@ void buildWords(const string& pattern, const string& floating, int pos,
         }
     }
     
-    // current position is a dash, try all 26 letters (still loop 5 but optimized)
+    // current position is a dash, try all letters but with smart ordering (still loop 5)
     for (char c = 'a'; c <= 'z'; c++) {
         current_word += c;
         map<char, int> temp_needed = floating_needed;
-        if (temp_needed.count(c)) {
-            temp_needed[c]--;
+        if (temp_needed.count(c) && temp_needed[c] > 0) {
+            temp_needed[c]--; // satisfy a floating requirement
         }
         buildWords(pattern, floating, pos + 1, current_word, dict, results, temp_needed);
         current_word.pop_back(); // backtrack
