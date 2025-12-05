@@ -40,16 +40,10 @@ void buildWords(const string& pattern, const string& floating, int pos,
             return;
         }
         
-        // check if it has all floating letters
+        // check if it has all floating letters using single loop
         for (int i = 0; i < (int)floating.length(); i++) {
-            bool found = false;
-            for (int j = 0; j < (int)current_word.length() && !found; j++) {
-                if (current_word[j] == floating[i]) {
-                    found = true;
-                }
-            }
-            if (!found) {
-                return;
+            if (current_word.find(floating[i]) == string::npos) {
+                return; // missing required floating letter
             }
         }
         
@@ -72,25 +66,15 @@ void buildWords(const string& pattern, const string& floating, int pos,
     }
     
     // simple pruning: check if we can fit remaining floating letters
-    if (!floating.empty()) {
-        int remaining_spots = (int)pattern.length() - pos;
-        int still_need = 0;
-        
-        for (int i = 0; i < (int)floating.length(); i++) {
-            bool found = false;
-            for (int j = 0; j < (int)current_word.length() && !found; j++) {
-                if (current_word[j] == floating[i]) {
-                    found = true;
-                }
-            }
-            if (!found) {
-                still_need++;
-            }
+    int remaining_spots = (int)pattern.length() - pos;
+    int still_need = 0;
+    for (int i = 0; i < (int)floating.length(); i++) {
+        if (current_word.find(floating[i]) == string::npos) {
+            still_need++;
         }
-        
-        if (still_need > remaining_spots) {
-            return;
-        }
+    }
+    if (still_need > remaining_spots) {
+        return;
     }
     
     // if this position has a fixed letter, use it
