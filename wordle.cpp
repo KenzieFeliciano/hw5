@@ -33,6 +33,18 @@ std::set<std::string> wordle(
             continue;
         }
         
+        // Check if word contains only lowercase letters
+        bool all_lowercase = true;
+        for (char c : word) {
+            if (!islower(c)) {
+                all_lowercase = false;
+                break;
+            }
+        }
+        if (!all_lowercase) {
+            continue;
+        }
+        
         // Check if word matches fixed positions
         bool matches_pattern = true;
         for (int i = 0; i < (int)in.length(); i++) {
