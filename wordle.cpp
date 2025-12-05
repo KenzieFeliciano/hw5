@@ -63,8 +63,7 @@ void findWords(const string& pattern, int position,
         return;
     }
     
-    // OK so this is a dash position - I need to try letters here
-    // First, let me figure out how many empty spots I have left
+    // count remaining dashes and floating letters once
     int dashesLeft = 0;
     for (int i = position; i < (int)pattern.length(); i++) {
         if (pattern[i] == '-') {
@@ -72,32 +71,32 @@ void findWords(const string& pattern, int position,
         }
     }
     
-    // And count how many floating letters I still need to place
     int floatingLeft = 0;
     for (const auto& pair : remainingFloating) {
         floatingLeft += pair.second;
     }
     
-    // If I have more floating letters than empty spots, this path is impossible
+    // early termination if impossible
     if (floatingLeft > dashesLeft) {
         return;
     }
     
-    // Now I'll try each letter from a to z in this position
-    for (char c = 'a'; c <= 'z'; c++) {
-        currentWord[position] = c;
-        
-        // Check if this letter is one of my required floating letters
-        if (remainingFloating.count(c) && remainingFloating[c] > 0) {
-            // Perfect! I can use one of my floating letters here
+    // try floating letters first (more constrained)
+    for (const auto& pair : remainingFloating) {
+        if (pair.second > 0) {
+            char c = pair.first;
+            currentWord[position] = c;
             remainingFloating[c]--;
             findWords(pattern, position + 1, currentWord, dict, results, remainingFloating);
-            remainingFloating[c]++; // backtrack - put it back
-        } else {
-            // This isn't a floating letter, but maybe I can still use it
-            // I just need to make sure I have enough spots left for my floating letters
-            int spotsAfterThis = dashesLeft - 1;
-            if (floatingLeft <= spotsAfterThis) {
+            remainingFloating[c]++; // backtrack
+        }
+    }
+    
+    // then try non-floating letters if we have room
+    if (floatingLeft < dashesLeft) {
+        for (char c = 'a'; c <= 'z'; c++) {
+            if (remainingFloating.count(c) == 0 || remainingFloating[c] == 0) {
+                currentWord[position] = c;
                 findWords(pattern, position + 1, currentWord, dict, results, remainingFloating);
             }
         }
