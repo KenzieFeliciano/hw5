@@ -23,10 +23,8 @@ using namespace std;
 // helper function to try scheduling workers
 bool trySchedule(int day, int slot, const AvailabilityMatrix& avail, 
                  const size_t dailyNeed, const size_t maxShifts, 
-                 DailySchedule& sched, vector<int>& workerShifts);
-
-// helper to check if worker is already scheduled for this day
-bool workerAlreadyScheduled(int day, Worker_T worker, const DailySchedule& sched);
+                 DailySchedule& sched, vector<int>& workerShifts,
+                 vector<set<Worker_T>>& dayWorkers);
 
 bool schedule(
     const AvailabilityMatrix& avail,
@@ -52,14 +50,18 @@ bool schedule(
     // keep track of how many shifts each worker has
     vector<int> workerShifts(numWorkers, 0);
     
+    // track scheduled workers per day with sets for O(log n) lookup
+    vector<set<Worker_T>> dayWorkers(numDays);
+    
     // start trying to fill the schedule from day 0, slot 0
-    return trySchedule(0, 0, avail, dailyNeed, maxShifts, sched, workerShifts);
+    return trySchedule(0, 0, avail, dailyNeed, maxShifts, sched, workerShifts, dayWorkers);
 }
 
 // this function tries to fill one slot at a time using backtracking
 bool trySchedule(int day, int slot, const AvailabilityMatrix& avail, 
                  const size_t dailyNeed, const size_t maxShifts, 
-                 DailySchedule& sched, vector<int>& workerShifts)
+                 DailySchedule& sched, vector<int>& workerShifts,
+                 vector<set<Worker_T>>& dayWorkers)
 {
     int numDays = avail.size();
     int numWorkers = avail[0].size();
@@ -71,14 +73,14 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
     
     // if we filled all slots for this day, move to next day
     if(slot == (int)dailyNeed) {
-        return trySchedule(day + 1, 0, avail, dailyNeed, maxShifts, sched, workerShifts);
+        return trySchedule(day + 1, 0, avail, dailyNeed, maxShifts, sched, workerShifts, dayWorkers);
     }
     
     // simple aggressive pruning: check available workers
     int available_count = 0;
     for(int w = 0; w < numWorkers; w++) {
         if(avail[day][w] && workerShifts[w] < (int)maxShifts && 
-           !workerAlreadyScheduled(day, w, sched)) {
+           dayWorkers[day].count(w) == 0) {  // O(log n) instead of O(n)
             available_count++;
         }
     }
@@ -88,32 +90,28 @@ bool trySchedule(int day, int slot, const AvailabilityMatrix& avail,
     
     // try each worker for this slot - simple order
     for(int worker = 0; worker < numWorkers; worker++) {
-        // check constraints
+        // check constraints using O(log n) set lookup
         if(!avail[day][worker] || workerShifts[worker] >= (int)maxShifts || 
-           workerAlreadyScheduled(day, worker, sched)) {
+           dayWorkers[day].count(worker) > 0) {
             continue;
         }
         
         // try scheduling this worker
         sched[day].push_back(worker);
+        dayWorkers[day].insert(worker);  // O(log n) insert
         workerShifts[worker]++;
         
         // recursively try to fill the rest
-        if(trySchedule(day, slot + 1, avail, dailyNeed, maxShifts, sched, workerShifts)) {
+        if(trySchedule(day, slot + 1, avail, dailyNeed, maxShifts, sched, workerShifts, dayWorkers)) {
             return true; // found a solution
         }
         
         // backtrack
         sched[day].pop_back();
+        dayWorkers[day].erase(worker);  // O(log n) erase
         workerShifts[worker]--;
     }
     
     return false;
-}
-
-// check if a worker is already scheduled to work on a specific day
-bool workerAlreadyScheduled(int day, Worker_T worker, const DailySchedule& sched) {
-    // use STL find algorithm as allowed
-    return std::find(sched[day].begin(), sched[day].end(), worker) != sched[day].end();
 }
 
