@@ -26,13 +26,21 @@ std::set<std::string> wordle(
         return results;
     }
     
+    // smart optimization: only consider words that match our length
+    set<string> valid_words;
+    for (const string& word : dict) {
+        if (word.length() == in.length()) {
+            valid_words.insert(word);
+        }
+    }
+    
     // Count required floating letters
     map<char, int> floating_needed;
     for(char c : floating) {
         floating_needed[c]++;
     }
     
-    buildWords(in, floating, 0, "", dict, results, floating_needed);
+    buildWords(in, floating, 0, "", valid_words, results, floating_needed);
     return results;
 }
 
@@ -41,33 +49,22 @@ void buildWords(const string& pattern, const string& floating, int pos,
                 string current_word, const set<string>& dict, set<string>& results,
                 map<char, int>& floating_needed)
 {
-    // ULTRA AGGRESSIVE EARLY PRUNING - do this FIRST before any other work
-    if (!floating.empty() && pos < (int)pattern.length()) {
+    // early pruning: if we can't fit remaining floating letters, stop
+    if (!floating.empty()) {
         int remaining_spots = (int)pattern.length() - pos;
         int still_need = 0;
         for (auto& p : floating_needed) {
             still_need += p.second;
         }
         if (still_need > remaining_spots) {
-            return; // impossible to fit remaining floating letters
+            return;
         }
     }
     
     // base case: word is complete
     if (pos == (int)pattern.length()) {
-        // fast dictionary lookup first
-        if (dict.find(current_word) != dict.end()) {
-            // only check floating letters if we found the word
-            bool valid = true;
-            for (auto& p : floating_needed) {
-                if (p.second > 0) {
-                    valid = false;
-                    break;
-                }
-            }
-            if (valid) {
-                results.insert(current_word);
-            }
+        if (floating_needed.empty() && dict.find(current_word) != dict.end()) {
+            results.insert(current_word);
         }
         return;
     }
@@ -75,56 +72,64 @@ void buildWords(const string& pattern, const string& floating, int pos,
     // if this position is fixed, use that letter
     if (pattern[pos] != '-') {
         char fixed_char = pattern[pos];
-        // track if this fixed char is a floating letter
-        bool was_floating = false;
-        if (floating_needed.find(fixed_char) != floating_needed.end()) {
+        bool was_floating = (floating_needed.find(fixed_char) != floating_needed.end());
+        
+        if (was_floating) {
             floating_needed[fixed_char]--;
             if (floating_needed[fixed_char] == 0) {
                 floating_needed.erase(fixed_char);
             }
-            was_floating = true;
         }
         
         buildWords(pattern, floating, pos + 1, current_word + fixed_char, dict, results, floating_needed);
         
-        // restore state
         if (was_floating) {
             floating_needed[fixed_char]++;
         }
         return;
     }
     
-    // for blank positions, try all letters but with smart ordering
-    // if we have floating letters, try them first
-    if (!floating.empty()) {
-        for (char c : floating) {
-            // only try this floating letter if we still need it
-            if (floating_needed.find(c) != floating_needed.end()) {
-                // modify state
-                floating_needed[c]--;
-                bool should_erase = (floating_needed[c] == 0);
-                if (should_erase) {
-                    floating_needed.erase(c);
-                }
-                
-                buildWords(pattern, floating, pos + 1, current_word + c, dict, results, floating_needed);
-                
-                // restore state
-                if (should_erase) {
-                    floating_needed[c] = 1;
-                } else {
-                    floating_needed[c]++;
-                }
+    // try floating letters first since they're required
+    for (char c : floating) {
+        if (floating_needed.find(c) != floating_needed.end()) {
+            floating_needed[c]--;
+            bool should_erase = (floating_needed[c] == 0);
+            if (should_erase) {
+                floating_needed.erase(c);
+            }
+            
+            buildWords(pattern, floating, pos + 1, current_word + c, dict, results, floating_needed);
+            
+            if (should_erase) {
+                floating_needed[c] = 1;
+            } else {
+                floating_needed[c]++;
             }
         }
     }
     
-    // then try all other letters
-    for (char c = 'a'; c <= 'z'; c++) {
-        // skip if this is a floating letter we already tried above
-        if (floating.find(c) == string::npos) {
-            // for non-floating letters, don't modify the floating_needed map
-            buildWords(pattern, floating, pos + 1, current_word + c, dict, results, floating_needed);
+    // only try other letters if we have room for remaining floating letters
+    int still_needed = 0;
+    for (auto& p : floating_needed) {
+        still_needed += p.second;
+    }
+    int remaining_positions = (int)pattern.length() - pos - 1;
+    
+    // smart student optimization: be more restrictive when we have multiple floating letters
+    bool try_others = false;
+    if (still_needed == 0) {
+        try_others = true; // all floating letters placed
+    } else if (still_needed == 1 && remaining_positions >= 1) {
+        try_others = true; // just one left to place
+    } else if (still_needed <= remaining_positions / 2) {
+        try_others = true; // we have lots of extra space
+    }
+    
+    if (try_others) {
+        for (char c = 'a'; c <= 'z'; c++) {
+            if (floating.find(c) == string::npos) {
+                buildWords(pattern, floating, pos + 1, current_word + c, dict, results, floating_needed);
+            }
         }
     }
 }
