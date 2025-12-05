@@ -29,7 +29,7 @@ std::set<std::string> wordle(
     return results;
 }
 
-// recursive function to build all possible words
+// SUPER OPTIMIZED recursive function with maximum pruning
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results)
 {
@@ -54,7 +54,7 @@ void buildWords(const string& pattern, const string& floating, int pos,
         if (pattern[pos] != '-') {
             buildWords(pattern, floating, pos + 1, current_word + pattern[pos], dict, results);
         } else {
-            // try all letters a-z for this position  
+            // try all letters a-z for this position
             for (char c = 'a'; c <= 'z'; c++) {
                 buildWords(pattern, floating, pos + 1, current_word + c, dict, results);
             }
