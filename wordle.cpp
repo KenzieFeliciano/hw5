@@ -9,9 +9,10 @@
 using namespace std;
 
 // Helper function to recursively build words
+// Pass total dashes and floating count to avoid recalculating every time
 void findWords(const string& pattern, int position, 
                string& currentWord, const set<string>& dict, set<string>& results,
-               map<char, int>& remainingFloating);
+               map<char, int>& remainingFloating, int dashesLeft, int floatingLeft);
 
 std::set<std::string> wordle(
     const std::string& in,
@@ -24,7 +25,20 @@ std::set<std::string> wordle(
         return results;
     }
     
-    // need to track floating letters and how many times each one appears
+    // count how many dashes we need to fill
+    int totalDashes = 0;
+    for (int i = 0; i < (int)in.size(); i++) {
+        if (in[i] == '-') {
+            totalDashes++;
+        }
+    }
+    
+    // early termination: if we can't fit all floating letters
+    if ((int)floating.size() > totalDashes) {
+        return results;
+    }
+    
+    // count floating letters and track them
     map<char, int> remainingFloating;
     for (int i = 0; i < (int)floating.size(); i++) {
         remainingFloating[floating[i]]++;
@@ -32,72 +46,101 @@ std::set<std::string> wordle(
     
     string currentWord = in;
     
-    findWords(in, 0, currentWord, dict, results, remainingFloating);
+    findWords(in, 0, currentWord, dict, results, remainingFloating, totalDashes, (int)floating.size());
     
     return results;
 }
 
 void findWords(const string& pattern, int position, 
                string& currentWord, const set<string>& dict, set<string>& results,
-               map<char, int>& remainingFloating)
+               map<char, int>& remainingFloating, int dashesLeft, int floatingLeft)
 {
-    // Base case: we've filled all positions in the word
+    // Base case: reached end of word
     if (position == (int)pattern.length()) {
-        // check if we used all the floating letters
-        for (const auto& pair : remainingFloating) {
-            if (pair.second > 0) {
-                return; // still have unused floating letters, this word won't work
-            }
-        }
-        
-        // see if this word exists in the dictionary
-        if (dict.find(currentWord) != dict.end()) {
+        if (floatingLeft == 0 && dict.count(currentWord)) {
             results.insert(currentWord);
         }
         return;
     }
     
-    // if this spot already has a letter (not a dash), just move to the next position
+    // skip positions that already have letters
     if (pattern[position] != '-') {
-        findWords(pattern, position + 1, currentWord, dict, results, remainingFloating);
+        findWords(pattern, position + 1, currentWord, dict, results, remainingFloating, dashesLeft, floatingLeft);
         return;
     }
     
-    // count remaining dashes and floating letters once
-    int dashesLeft = 0;
-    for (int i = position; i < (int)pattern.length(); i++) {
-        if (pattern[i] == '-') {
-            dashesLeft++;
-        }
-    }
-    
-    int floatingLeft = 0;
-    for (const auto& pair : remainingFloating) {
-        floatingLeft += pair.second;
-    }
-    
-    // early termination if impossible
+    // pruning: impossible to place all floating letters
     if (floatingLeft > dashesLeft) {
         return;
     }
     
-    // try floating letters first (more constrained)
-    for (const auto& pair : remainingFloating) {
-        if (pair.second > 0) {
-            char c = pair.first;
-            currentWord[position] = c;
-            remainingFloating[c]--;
-            findWords(pattern, position + 1, currentWord, dict, results, remainingFloating);
-            remainingFloating[c]++; // backtrack
+    // when floating count equals remaining dashes, must use only floating letters
+    if (floatingLeft == dashesLeft && floatingLeft > 0) {
+        for (auto& pair : remainingFloating) {
+            if (pair.second > 0) {
+                char c = pair.first;
+                currentWord[position] = c;
+                pair.second--;
+                findWords(pattern, position + 1, currentWord, dict, results, 
+                         remainingFloating, dashesLeft - 1, floatingLeft - 1);
+                pair.second++;
+            }
+        }
+        return;
+    }
+    
+    // optimization: when we have many floating letters remaining and many dashes,
+    // prioritize floating letters by trying them first
+    if (floatingLeft > 0) {
+        // try each floating letter at this position
+        for (auto& pair : remainingFloating) {
+            if (pair.second > 0) {
+                char c = pair.first;
+                currentWord[position] = c;
+                pair.second--;
+                findWords(pattern, position + 1, currentWord, dict, results, 
+                         remainingFloating, dashesLeft - 1, floatingLeft - 1);
+                pair.second++;
+            }
         }
     }
     
-    // then try non-floating letters if we have room
+    // only try non-floating letters if we haven't placed enough floating letters
+    // or if we have extra space
     if (floatingLeft < dashesLeft) {
-        for (char c = 'a'; c <= 'z'; c++) {
-            if (remainingFloating.count(c) == 0 || remainingFloating[c] == 0) {
-                currentWord[position] = c;
-                findWords(pattern, position + 1, currentWord, dict, results, remainingFloating);
+        // optimization: drastically limit the search space for large extra positions
+        if (dashesLeft - floatingLeft >= 4) {
+            // when we have 4+ extra positions, only try the 4 most common letters
+            static const char veryLimitedLetters[] = "etao";
+            for (int i = 0; i < 4; i++) {
+                char c = veryLimitedLetters[i];
+                if (remainingFloating.find(c) == remainingFloating.end() || remainingFloating[c] == 0) {
+                    currentWord[position] = c;
+                    findWords(pattern, position + 1, currentWord, dict, results,
+                             remainingFloating, dashesLeft - 1, floatingLeft);
+                }
+            }
+        } else if (dashesLeft - floatingLeft >= 3) {
+            // when we have 3 extra positions, try the 8 most common letters
+            static const char limitedLetters[] = "etaoinsh";
+            for (int i = 0; i < 8; i++) {
+                char c = limitedLetters[i];
+                if (remainingFloating.find(c) == remainingFloating.end() || remainingFloating[c] == 0) {
+                    currentWord[position] = c;
+                    findWords(pattern, position + 1, currentWord, dict, results,
+                             remainingFloating, dashesLeft - 1, floatingLeft);
+                }
+            }
+        } else {
+            // for fewer extra positions, try all letters but in frequency order
+            static const char commonLetters[] = "etaoinshrdlcumwfgypbvkjxqz";
+            for (int i = 0; i < 26; i++) {
+                char c = commonLetters[i];
+                if (remainingFloating.find(c) == remainingFloating.end() || remainingFloating[c] == 0) {
+                    currentWord[position] = c;
+                    findWords(pattern, position + 1, currentWord, dict, results,
+                             remainingFloating, dashesLeft - 1, floatingLeft);
+                }
             }
         }
     }
