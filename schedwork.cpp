@@ -19,12 +19,10 @@ using namespace std;
 // Feel free to not use or delete.
 // static const Worker_T INVALID_ID = (unsigned int)-1;
 
-
-// helper function to try scheduling workers
-bool trySchedule(int day, int slot, const AvailabilityMatrix& avail, 
-                 const size_t dailyNeed, const size_t maxShifts, 
-                 DailySchedule& sched, vector<int>& workerShifts,
-                 vector<set<Worker_T>>& dayWorkers);
+// helper function to try scheduling workers recursively
+bool fillSchedule(int day, int slot, const AvailabilityMatrix& avail, 
+                  const size_t dailyNeed, const size_t maxShifts, 
+                  DailySchedule& sched, vector<int>& worker_shift_count);
 
 bool schedule(
     const AvailabilityMatrix& avail,
@@ -38,93 +36,69 @@ bool schedule(
     }
     sched.clear();
     
-    int numDays = avail.size();
-    int numWorkers = avail[0].size();
+    int days = avail.size();
+    int workers = avail[0].size();
     
-    // set up the schedule matrix - each day needs dailyNeed workers
-    for(int i = 0; i < numDays; i++){
-        vector<Worker_T> daySchedule;
-        sched.push_back(daySchedule);
+    // setup the schedule - each day needs a vector for worker IDs (loop 1)
+    for(int d = 0; d < days; d++){
+        vector<Worker_T> day_workers;
+        sched.push_back(day_workers);
     }
     
-    // keep track of how many shifts each worker has
-    vector<int> workerShifts(numWorkers, 0);
+    // keep track of how many shifts each worker has been assigned (loop 2)
+    vector<int> worker_shift_count(workers, 0);
     
-    // track scheduled workers per day with sets for O(log n) lookup
-    vector<set<Worker_T>> dayWorkers(numDays);
-    
-    // start trying to fill the schedule from day 0, slot 0
-    return trySchedule(0, 0, avail, dailyNeed, maxShifts, sched, workerShifts, dayWorkers);
+    // start trying to fill from day 0, slot 0
+    return fillSchedule(0, 0, avail, dailyNeed, maxShifts, sched, worker_shift_count);
 }
-
-// this function tries to fill one slot at a time using backtracking
-bool trySchedule(int day, int slot, const AvailabilityMatrix& avail, 
-                 const size_t dailyNeed, const size_t maxShifts, 
-                 DailySchedule& sched, vector<int>& workerShifts,
-                 vector<set<Worker_T>>& dayWorkers)
+// recursive backtracking function to fill one slot at a time
+bool fillSchedule(int day, int slot, const AvailabilityMatrix& avail, 
+                  const size_t dailyNeed, const size_t maxShifts, 
+                  DailySchedule& sched, vector<int>& worker_shift_count)
 {
-    int numDays = avail.size();
-    int numWorkers = avail[0].size();
+    int days = avail.size();
+    int workers = avail[0].size();
     
-    // if we filled all days successfully, we found a solution
-    if(day == numDays) {
+    // base case: successfully filled all days
+    if(day == days) {
         return true;
     }
     
-    // if we filled all slots for this day, move to next day
+    // if we finished this day, move to next day
     if(slot == (int)dailyNeed) {
-        return trySchedule(day + 1, 0, avail, dailyNeed, maxShifts, sched, workerShifts, dayWorkers);
+        return fillSchedule(day + 1, 0, avail, dailyNeed, maxShifts, sched, worker_shift_count);
     }
     
-    // aggressive pruning: check available workers for this slot
-    int available_count = 0;
-    for(int w = 0; w < numWorkers; w++) {
-        if(avail[day][w] && workerShifts[w] < (int)maxShifts && 
-           dayWorkers[day].count(w) == 0) {  // O(log n) instead of O(n)
-            available_count++;
-        }
-    }
-    if(available_count < ((int)dailyNeed - slot)) {
-        return false; // not enough workers for remaining slots
-    }
-    
-    // future days pruning: check if we can satisfy all remaining days
-    for(int future_day = day + 1; future_day < numDays; future_day++) {
-        int future_available = 0;
-        for(int w = 0; w < numWorkers; w++) {
-            if(avail[future_day][w] && workerShifts[w] < (int)maxShifts) {
-                future_available++;
+    // try each worker for this slot (loop 3)
+    for(int w = 0; w < workers; w++) {
+        // check if this worker can work this slot
+        if(!avail[day][w]) continue; // not available
+        if(worker_shift_count[w] >= (int)maxShifts) continue; // too many shifts
+        
+        // check if worker already scheduled this day
+        bool already_working = false;
+        for(int i = 0; i < (int)sched[day].size(); i++) {
+            if(sched[day][i] == w) {
+                already_working = true;
+                break;
             }
         }
-        if(future_available < (int)dailyNeed) {
-            return false; // impossible to fill future day
-        }
-    }
-    
-    // try each worker for this slot - simple order
-    for(int worker = 0; worker < numWorkers; worker++) {
-        // check constraints using O(log n) set lookup
-        if(!avail[day][worker] || workerShifts[worker] >= (int)maxShifts || 
-           dayWorkers[day].count(worker) > 0) {
-            continue;
+        if(already_working) continue;
+        
+        // try assigning this worker
+        sched[day].push_back(w);
+        worker_shift_count[w]++;
+        
+        // recursive call to fill next slot
+        if(fillSchedule(day, slot + 1, avail, dailyNeed, maxShifts, sched, worker_shift_count)) {
+            return true; // found solution
         }
         
-        // try scheduling this worker
-        sched[day].push_back(worker);
-        dayWorkers[day].insert(worker);  // O(log n) insert
-        workerShifts[worker]++;
-        
-        // recursively try to fill the rest
-        if(trySchedule(day, slot + 1, avail, dailyNeed, maxShifts, sched, workerShifts, dayWorkers)) {
-            return true; // found a solution
-        }
-        
-        // backtrack
+        // backtrack if no solution found
         sched[day].pop_back();
-        dayWorkers[day].erase(worker);  // O(log n) erase
-        workerShifts[worker]--;
+        worker_shift_count[w]--;
     }
     
-    return false;
+    return false; // no valid assignment found
 }
 

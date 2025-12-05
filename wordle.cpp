@@ -1,6 +1,6 @@
 #ifndef RECCHECK
 #include <iostream>
-#include <unordered_map>
+#include <map>
 #include <set>
 #endif
 
@@ -8,12 +8,12 @@
 #include "dict-eng.h"
 using namespace std;
 
-// helper function to recursively build words
+// helper function to recursively generate all possible words
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results,
-                unordered_map<char, int>& floating_needed);
+                map<char, int>& floating_needed);
 
-// main wordle function
+// main wordle function - generates all combos then checks dict
 std::set<std::string> wordle(
     const std::string& in,
     const std::string& floating,
@@ -21,72 +21,80 @@ std::set<std::string> wordle(
 {
     set<string> results;
     
-    // handle empty case
+    // edge case
     if (in.empty()) {
         return results;
     }
     
-    const int pattern_length = static_cast<int>(in.length());
-    
-    // Pre-calculate floating letter requirements
-    unordered_map<char, int> floating_needed;
-    for (char c : floating) {
-        floating_needed[c]++;
+    // count how many of each floating letter we need (loop 1)
+    map<char, int> floating_count;
+    for (int i = 0; i < (int)floating.size(); i++) {
+        floating_count[floating[i]]++;
     }
     
-    // Filter-based approach: iterate through dictionary words instead of generating
-    for (const string& word : dict) {
-        // Check if word matches pattern length (fastest check first)
-        if (static_cast<int>(word.length()) != pattern_length) {
-            continue;
-        }
-        
-        // Check if word matches fixed positions and contains only lowercase letters
-        bool valid = true;
-        for (int i = 0; i < pattern_length; i++) {
-            char wc = word[i];
-            if (!islower(wc) || (in[i] != '-' && in[i] != wc)) {
-                valid = false;
-                break;
-            }
-        }
-        if (!valid) {
-            continue;
-        }
-        
-        // Check floating letters only if there are any
-        if (!floating_needed.empty()) {
-            unordered_map<char, int> dash_chars;
-            for (int i = 0; i < pattern_length; i++) {
-                if (in[i] == '-') {
-                    dash_chars[word[i]]++;
-                }
-            }
-            
-            for (const auto& p : floating_needed) {
-                if (dash_chars[p.first] < p.second) {
-                    valid = false;
-                    break;
-                }
-            }
-            
-            if (!valid) {
-                continue;
-            }
-        }
-        
-        results.insert(word);
-    }
+    // start recursive generation from position 0
+    string word_so_far = "";
+    buildWords(in, floating, 0, word_so_far, dict, results, floating_count);
     
     return results;
 }
 
-// recursive function to build words (kept for assignment requirements but not used)
+// recursive function to build words
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results,
-                unordered_map<char, int>& floating_needed)
+                map<char, int>& floating_needed)
 {
-    // This function is kept to satisfy assignment requirements but not actually used
-    // The main wordle function uses a more efficient filter-based approach
-    return;
+    // base case: if we've filled all positions, check if word is valid
+    if (pos == (int)pattern.length()) {
+        // make sure word is in dictionary and only lowercase
+        if (dict.find(current_word) != dict.end()) {
+            // check if word has only lowercase letters (loop 2)
+            bool all_lower = true;
+            for (int i = 0; i < (int)current_word.length(); i++) {
+                if (!islower(current_word[i])) {
+                    all_lower = false;
+                    break;
+                }
+            }
+            
+            if (all_lower) {
+                // count letters in dash positions to check floating constraints (loop 3)  
+                map<char, int> dash_letters;
+                for (int i = 0; i < (int)current_word.length(); i++) {
+                    if (pattern[i] == '-') {
+                        dash_letters[current_word[i]]++;
+                    }
+                }
+                
+                // verify floating letter requirements are met (loop 4)
+                bool floating_ok = true;
+                for (map<char, int>::iterator it = floating_needed.begin(); 
+                     it != floating_needed.end(); it++) {
+                    if (dash_letters[it->first] < it->second) {
+                        floating_ok = false;
+                        break;
+                    }
+                }
+                
+                if (floating_ok) {
+                    results.insert(current_word);
+                }
+            }
+        }
+        return;
+    }
+    
+    // if current position is fixed, use that character
+    if (pattern[pos] != '-') {
+        current_word += pattern[pos];
+        buildWords(pattern, floating, pos + 1, current_word, dict, results, floating_needed);
+        return;
+    }
+    
+    // current position is a dash, try all 26 letters (loop 5)
+    for (char c = 'a'; c <= 'z'; c++) {
+        current_word += c;
+        buildWords(pattern, floating, pos + 1, current_word, dict, results, floating_needed);
+        current_word.pop_back(); // backtrack
+    }
 }
