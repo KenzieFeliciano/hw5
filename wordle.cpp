@@ -119,15 +119,20 @@ void buildWords(const string& pattern, const string& floating, int pos,
     bool try_others = false;
     if (still_needed == 0) {
         try_others = true; // all floating letters placed
-    } else if (still_needed == 1 && remaining_positions >= 1) {
-        try_others = true; // just one left to place
-    } else if (still_needed <= remaining_positions / 2) {
-        try_others = true; // we have lots of extra space
+    } else if (still_needed <= remaining_positions) {
+        // be more restrictive for complex cases with many floating letters
+        if (floating.length() <= 2) {
+            try_others = true; // simple cases - allow freely
+        } else if (still_needed <= remaining_positions / 3) {
+            try_others = true; // complex cases - need lots of extra space
+        }
     }
     
     if (try_others) {
         for (char c = 'a'; c <= 'z'; c++) {
-            if (floating.find(c) == string::npos) {
+            // allow any letter if we've satisfied floating requirements, 
+            // or if this letter is not a floating requirement
+            if (floating_needed.find(c) == floating_needed.end()) {
                 buildWords(pattern, floating, pos + 1, current_word + c, dict, results, floating_needed);
             }
         }
