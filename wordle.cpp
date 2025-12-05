@@ -12,7 +12,7 @@ using namespace std;
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results);
 
-// main function that finds all valid wordle words
+// main wordle function
 std::set<std::string> wordle(
     const std::string& in,
     const std::string& floating,
@@ -20,70 +20,85 @@ std::set<std::string> wordle(
 {
     set<string> results;
     
-    // CRITICAL OPTIMIZATION: handle empty pattern immediately
+    // handle empty case
     if (in.empty()) {
-        return results; // empty set for empty pattern
+        return results;
     }
     
     buildWords(in, floating, 0, "", dict, results);
     return results;
 }
 
-//recursive function with prefix-based pruning
+// recursive function to build words
 void buildWords(const string& pattern, const string& floating, int pos, 
                 string current_word, const set<string>& dict, set<string>& results)
 {
-    // base case: if we've filled the entire word
+    // base case: word is complete
     if (pos == (int)pattern.length()) {
-        // check if it's a real word first (fast dictionary lookup)
-        if (dict.find(current_word) != dict.end()) {
-            // then check floating letters - efficient single loop
-            for (int i = 0; i < (int)floating.length(); i++) {
-                if (current_word.find(floating[i]) == string::npos) {
-                    return; // missing required floating letter
+        // check if its in the dictionary first
+        if (dict.find(current_word) == dict.end()) {
+            return;
+        }
+        
+        // check if it has all floating letters
+        for (int i = 0; i < (int)floating.length(); i++) {
+            bool found = false;
+            for (int j = 0; j < (int)current_word.length() && !found; j++) {
+                if (current_word[j] == floating[i]) {
+                    found = true;
                 }
             }
-            results.insert(current_word);
+            if (!found) {
+                return;
+            }
+        }
+        
+        results.insert(current_word);
+        return;
+    }
+    
+    // fast path: if no floating letters, skip expensive pruning
+    if (floating.empty()) {
+        // if this position has a fixed letter, use it
+        if (pattern[pos] != '-') {
+            buildWords(pattern, floating, pos + 1, current_word + pattern[pos], dict, results);
+        } else {
+            // try all possible letters for this position
+            for (char c = 'a'; c <= 'z'; c++) {
+                buildWords(pattern, floating, pos + 1, current_word + c, dict, results);
+            }
         }
         return;
     }
-
-    // REVOLUTIONARY OPTIMIZATION: Use dictionary as prefix filter
-    // Instead of trying all 26 letters, only try letters that could lead to valid words
-    set<char> valid_next_chars;
     
-    // Find all possible next characters by checking dictionary prefixes
-    for (const string& word : dict) {
-        if (word.length() == pattern.length() && 
-            word.length() > pos &&
-            word.substr(0, pos) == current_word) {
-            valid_next_chars.insert(word[pos]);
-        }
-    }
-    
-    // SMART PRUNING: early exit if impossible to place remaining floating letters
+    // simple pruning: check if we can fit remaining floating letters
     if (!floating.empty()) {
         int remaining_spots = (int)pattern.length() - pos;
         int still_need = 0;
+        
         for (int i = 0; i < (int)floating.length(); i++) {
-            if (current_word.find(floating[i]) == string::npos) {
+            bool found = false;
+            for (int j = 0; j < (int)current_word.length() && !found; j++) {
+                if (current_word[j] == floating[i]) {
+                    found = true;
+                }
+            }
+            if (!found) {
                 still_need++;
             }
         }
+        
         if (still_need > remaining_spots) {
-            return; // can't fit remaining floating letters
+            return;
         }
     }
-
-    // if this position is fixed, use that letter
+    
+    // if this position has a fixed letter, use it
     if (pattern[pos] != '-') {
-        char required_char = pattern[pos];
-        if (valid_next_chars.find(required_char) != valid_next_chars.end()) {
-            buildWords(pattern, floating, pos + 1, current_word + required_char, dict, results);
-        }
+        buildWords(pattern, floating, pos + 1, current_word + pattern[pos], dict, results);
     } else {
-        // Only try letters that could lead to valid dictionary words
-        for (char c : valid_next_chars) {
+        // try all possible letters for this position
+        for (char c = 'a'; c <= 'z'; c++) {
             buildWords(pattern, floating, pos + 1, current_word + c, dict, results);
         }
     }
