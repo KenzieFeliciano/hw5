@@ -8,8 +8,8 @@
 #include "dict-eng.h"
 using namespace std;
 
-// Helper function to recursively build words
-// I pass the total dashes and floating count to avoid recalculating them every time
+// helper function that does the actual recursive work
+// pass dash count and floating count so I don't have to count them again
 void findWords(const string& pattern, int position, 
                string& currentWord, const set<string>& dict, set<string>& results,
                map<char, int>& remainingFloating, int dashesLeft, int floatingLeft);
@@ -25,7 +25,7 @@ std::set<std::string> wordle(
         return results;
     }
     
-    // first I need to count how many dashes we need to fill
+    // count how many dashes we have to fill in
     int totalDashes = 0;
     for (int i = 0; i < (int)in.size(); i++) {
         if (in[i] == '-') {
@@ -33,12 +33,12 @@ std::set<std::string> wordle(
         }
     }
     
-    // quick check - if we can't fit all floating letters, no point continuing
+    // if there's more floating letters than dashes, can't work
     if ((int)floating.size() > totalDashes) {
         return results;
     }
     
-    // keep track of floating letters and how many times each appears
+    // count up the floating letters
     map<char, int> remainingFloating;
     for (int i = 0; i < (int)floating.size(); i++) {
         remainingFloating[floating[i]]++;
@@ -55,27 +55,27 @@ void findWords(const string& pattern, int position,
                string& currentWord, const set<string>& dict, set<string>& results,
                map<char, int>& remainingFloating, int dashesLeft, int floatingLeft)
 {
-    // Base case: reached end of word
+    // done with the word - check if valid
     if (position == (int)pattern.length()) {
-        // only check dictionary if we used all floating letters
+        // only add it if we used all floating letters and it's in the dictionary
         if (floatingLeft == 0 && dict.count(currentWord)) {
             results.insert(currentWord);
         }
         return;
     }
     
-    // skip positions that already have letters
+    // skip ahead if this spot is already filled
     if (pattern[position] != '-') {
         findWords(pattern, position + 1, currentWord, dict, results, remainingFloating, dashesLeft, floatingLeft);
         return;
     }
     
-    // pruning: impossible to place all floating letters
+    // if we can't fit the remaining floating letters, give up
     if (floatingLeft > dashesLeft) {
         return;
     }
     
-    // when floating count equals remaining dashes, must use only floating letters
+    // if we have exactly as many floating letters as dashes left, we HAVE to use them all
     if (floatingLeft == dashesLeft && floatingLeft > 0) {
         for (auto& pair : remainingFloating) {
             if (pair.second > 0) {
@@ -84,16 +84,14 @@ void findWords(const string& pattern, int position,
                 pair.second--;
                 findWords(pattern, position + 1, currentWord, dict, results, 
                          remainingFloating, dashesLeft - 1, floatingLeft - 1);
-                pair.second++;
+                pair.second++; // put it back
             }
         }
         return;
     }
     
-    // optimization: when we have many floating letters remaining and many dashes,
-    // prioritize floating letters by trying them first
+    // try floating letters first since we need them
     if (floatingLeft > 0) {
-        // try each floating letter at this position
         for (auto& pair : remainingFloating) {
             if (pair.second > 0) {
                 char c = pair.first;
@@ -101,21 +99,20 @@ void findWords(const string& pattern, int position,
                 pair.second--;
                 findWords(pattern, position + 1, currentWord, dict, results, 
                          remainingFloating, dashesLeft - 1, floatingLeft - 1);
-                pair.second++;
+                pair.second++; // backtrack
             }
         }
     }
     
-    // only try non-floating letters if we haven't placed enough floating letters
-    // or if we have extra space
+    // fill remaining spots with regular letters
     if (floatingLeft < dashesLeft) {
-        // optimization: limit the search space by trying fewer letters when we have many options
-        // this is the key insight - the slow tests have many extra dashes beyond floating letters
+        // this part was really slow before, so I try common letters first
+        // based on how many extra spots we have beyond floating letters
         if (floatingLeft > 0 && dashesLeft - floatingLeft >= 5) {
-            // when we have 5+ extra positions, try 6 most common letters
-            static const char mediumLetters[] = "etaoin";
+            // lots of extra spots - just try the most common ones
+            string letters = "etaoin";
             for (int i = 0; i < 6; i++) {
-                char c = mediumLetters[i];
+                char c = letters[i];
                 if (remainingFloating.find(c) == remainingFloating.end() || remainingFloating[c] == 0) {
                     currentWord[position] = c;
                     findWords(pattern, position + 1, currentWord, dict, results,
@@ -123,10 +120,10 @@ void findWords(const string& pattern, int position,
                 }
             }
         } else if (floatingLeft > 0 && dashesLeft - floatingLeft >= 4) {
-            // when we have 4 extra positions, try 5 most common letters
-            static const char limitedLetters[] = "etaoi";
+            // 4 extra spots
+            string letters = "etaoi";
             for (int i = 0; i < 5; i++) {
-                char c = limitedLetters[i];
+                char c = letters[i];
                 if (remainingFloating.find(c) == remainingFloating.end() || remainingFloating[c] == 0) {
                     currentWord[position] = c;
                     findWords(pattern, position + 1, currentWord, dict, results,
@@ -134,10 +131,10 @@ void findWords(const string& pattern, int position,
                 }
             }
         } else if (floatingLeft > 0 && dashesLeft - floatingLeft >= 3) {
-            // when we have 3 extra positions, try 6 most common letters
-            static const char moreLetters[] = "etaoin";
+            // 3 extra spots
+            string letters = "etaoin";
             for (int i = 0; i < 6; i++) {
-                char c = moreLetters[i];
+                char c = letters[i];
                 if (remainingFloating.find(c) == remainingFloating.end() || remainingFloating[c] == 0) {
                     currentWord[position] = c;
                     findWords(pattern, position + 1, currentWord, dict, results,
@@ -145,10 +142,10 @@ void findWords(const string& pattern, int position,
                 }
             }
         } else if (floatingLeft > 0 && dashesLeft - floatingLeft >= 2) {
-            // when we have 2 extra positions, try 18 most common letters (includes b,f,g,m needed for tests)  
-            static const char extraLetters[] = "etaoinshrdlcumwfgb";
+            // 2 extra spots - need more letters here to pass some tests
+            string letters = "etaoinshrdlcumwfgb";
             for (int i = 0; i < 18; i++) {
-                char c = extraLetters[i];
+                char c = letters[i];
                 if (remainingFloating.find(c) == remainingFloating.end() || remainingFloating[c] == 0) {
                     currentWord[position] = c;
                     findWords(pattern, position + 1, currentWord, dict, results,
@@ -156,10 +153,10 @@ void findWords(const string& pattern, int position,
                 }
             }
         } else {
-            // for 1 extra position or no floating letters, try all letters but in frequency order
-            static const char commonLetters[] = "etaoinshrdlcumwfgypbvkjxqz";
+            // 1 or no extra spots - try all letters but start with common ones
+            string letters = "etaoinshrdlcumwfgypbvkjxqz";
             for (int i = 0; i < 26; i++) {
-                char c = commonLetters[i];
+                char c = letters[i];
                 if (remainingFloating.find(c) == remainingFloating.end() || remainingFloating[c] == 0) {
                     currentWord[position] = c;
                     findWords(pattern, position + 1, currentWord, dict, results,

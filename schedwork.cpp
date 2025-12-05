@@ -19,7 +19,7 @@ using namespace std;
 // Feel free to not use or delete.
 // static const Worker_T INVALID_ID = (unsigned int)-1;
 
-// helper function to try scheduling workers recursively
+// helper function for the recursive part
 bool fillSchedule(int day, int slot, const AvailabilityMatrix& avail, 
                   const size_t dailyNeed, const size_t maxShifts, 
                   DailySchedule& sched, vector<int>& worker_shift_count);
@@ -39,19 +39,19 @@ bool schedule(
     int days = avail.size();
     int workers = avail[0].size();
     
-    // setup the schedule - each day needs a vector for worker IDs (loop 1)
+    // setup the schedule matrix - each day gets its own vector (loop 1)
     for(int d = 0; d < days; d++){
         vector<Worker_T> day_workers;
         sched.push_back(day_workers);
     }
     
-    // keep track of how many shifts each worker has been assigned (loop 2)
+    // track how many shifts each worker has (loop 2)
     vector<int> worker_shift_count(workers, 0);
     
-    // start trying to fill from day 0, slot 0
+    // start the recursive search from the beginning
     return fillSchedule(0, 0, avail, dailyNeed, maxShifts, sched, worker_shift_count);
 }
-// recursive backtracking function to fill one slot at a time
+// does the actual work - fills one slot at a time
 bool fillSchedule(int day, int slot, const AvailabilityMatrix& avail, 
                   const size_t dailyNeed, const size_t maxShifts, 
                   DailySchedule& sched, vector<int>& worker_shift_count)
@@ -59,23 +59,23 @@ bool fillSchedule(int day, int slot, const AvailabilityMatrix& avail,
     int days = avail.size();
     int workers = avail[0].size();
     
-    // base case: successfully filled all days
+    // finished all days
     if(day == days) {
         return true;
     }
     
-    // if we finished this day, move to next day
+    // finished this day, go to next
     if(slot == (int)dailyNeed) {
         return fillSchedule(day + 1, 0, avail, dailyNeed, maxShifts, sched, worker_shift_count);
     }
     
-    // try each worker for this slot (loop 3)
+    // try each worker for this time slot (loop 3)
     for(int w = 0; w < workers; w++) {
-        // check if this worker can work this slot
-        if(!avail[day][w]) continue; // not available
-        if(worker_shift_count[w] >= (int)maxShifts) continue; // too many shifts
+        // check if this worker can work this day/slot
+        if(!avail[day][w]) continue; // not available today
+        if(worker_shift_count[w] >= (int)maxShifts) continue; // already at max shifts
         
-        // check if worker already scheduled this day
+        // make sure worker isn't already scheduled today
         bool already_working = false;
         for(int i = 0; i < (int)sched[day].size(); i++) {
             if(sched[day][i] == w) {
@@ -85,20 +85,20 @@ bool fillSchedule(int day, int slot, const AvailabilityMatrix& avail,
         }
         if(already_working) continue;
         
-        // try assigning this worker
+        // try this worker
         sched[day].push_back(w);
         worker_shift_count[w]++;
         
-        // recursive call to fill next slot
+        // see if we can fill the rest
         if(fillSchedule(day, slot + 1, avail, dailyNeed, maxShifts, sched, worker_shift_count)) {
-            return true; // found solution
+            return true; // found a solution
         }
         
-        // backtrack if no solution found
+        // didn't work, undo
         sched[day].pop_back();
         worker_shift_count[w]--;
     }
     
-    return false; // no valid assignment found
+    return false; // couldn't find anyone for this slot
 }
 
